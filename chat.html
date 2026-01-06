@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Web-Chat</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Work+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body data-page="chat" data-theme="blue" class="page-chat">
+    <script>
+      if (!localStorage.getItem("token")) {
+        alert("请先登录后进入聊天。");
+        window.location.replace("/");
+      }
+    </script>
+    <div class="bg-gradient"></div>
+    <div class="bg-grid"></div>
+    <div class="bg-orb orb-1"></div>
+    <div class="bg-orb orb-2"></div>
+
+    <div class="page">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark"></span>
+          <div>
+            <div class="brand-name">kisara71</div>
+            <div class="brand-sub">kisara71@qq.com</div>
+          </div>
+        </div>
+        <div class="top-actions">
+          <div class="theme-toggle" role="group" aria-label="主题">
+            <button class="theme-button" type="button" id="themeBlue">蓝白</button>
+            <button class="theme-button" type="button" id="themeNeon">霓虹</button>
+          </div>
+          <button class="ghost" id="goSettings">设置</button>
+          <button class="ghost" id="backToLogin">返回登录</button>
+          <button class="secondary" id="refreshModels">刷新模型</button>
+        </div>
+      </header>
+
+      <main class="chat-shell">
+        <aside class="side">
+          <div class="section-title">对话</div>
+          <div class="conversation-list" id="conversationList">
+            <button class="conversation-item active" type="button">默认对话</button>
+            <button class="conversation-item" type="button">新建对话</button>
+          </div>
+
+          <div class="section-title">连接设置</div>
+          <label class="field">
+            <span>Base URL</span>
+            <input id="apiBase" type="text" placeholder="http://localhost:8080" />
+          </label>
+
+          <div class="section-title">模型列表</div>
+          <label class="field">
+            <span>Model</span>
+            <select id="modelSelect"></select>
+          </label>
+          <div class="hint">登录后自动刷新模型</div>
+        </aside>
+
+        <section class="chat">
+          <div class="chat-header">
+            <div>
+              <div class="chat-title">#lounge</div>
+              <div class="chat-sub">流式回复已启用</div>
+            </div>
+            <div class="pill" id="userBadge">未登录</div>
+          </div>
+
+          <div id="messageList" class="messages">
+            <div class="message assistant">
+              <div class="bubble">
+                <div class="meta">Sydney · 09:10</div>
+                <div>你好，准备好开始对话。</div>
+              </div>
+            </div>
+          </div>
+
+          <form id="chatForm" class="composer">
+            <input
+              id="chatInput"
+              type="text"
+              placeholder="输入消息，按 Enter 发送"
+              autocomplete="off"
+            />
+            <button type="submit" class="primary">发送</button>
+          </form>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <span>Warm minimal · soft motion · SSE streaming</span>
+        <button class="ghost" id="clearChat">清空对话</button>
+      </footer>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

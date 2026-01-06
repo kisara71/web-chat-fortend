@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Harbor Chat - 设置</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Work+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body data-page="settings" data-theme="blue" class="page-chat">
+    <script>
+      if (!localStorage.getItem("token")) {
+        alert("请先登录后进入设置。");
+        window.location.replace("/");
+      }
+    </script>
+    <div class="bg-gradient"></div>
+    <div class="bg-grid"></div>
+    <div class="bg-orb orb-1"></div>
+    <div class="bg-orb orb-2"></div>
+
+    <div class="page">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark"></span>
+          <div>
+            <div class="brand-name">Harbor Chat</div>
+            <div class="brand-sub">专注对话，顺滑而安静。</div>
+          </div>
+        </div>
+        <div class="top-actions">
+          <div class="theme-toggle" role="group" aria-label="主题">
+            <button class="theme-button" type="button" id="themeBlue">蓝白</button>
+            <button class="theme-button" type="button" id="themeNeon">霓虹</button>
+          </div>
+          <button class="ghost" id="backToChat">返回聊天</button>
+          <button class="primary" id="logoutBtn">退出登录</button>
+        </div>
+      </header>
+
+      <main class="settings-shell">
+        <section class="settings-panel">
+          <div class="section-title">账户信息</div>
+          <div class="user-card">
+            <div class="user-name" id="userName">--</div>
+            <div class="user-meta" id="userEmail">--</div>
+          </div>
+
+          <form id="userForm" class="stack">
+            <label class="field">
+              <span>昵称</span>
+              <input id="userNicknameInput" type="text" placeholder="新的昵称" />
+            </label>
+            <label class="field">
+              <span>邮箱</span>
+              <input id="userEmailInput" type="email" placeholder="新的邮箱" />
+            </label>
+            <label class="field">
+              <span>手机号</span>
+              <input id="userPhoneInput" type="text" placeholder="新的手机号" />
+            </label>
+            <label class="field">
+              <span>新密码</span>
+              <input id="userPasswordInput" type="password" placeholder="留空不修改" />
+            </label>
+            <button class="primary" type="submit">保存设置</button>
+          </form>
+          <div class="hint" id="userStatus"></div>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <span>账号设置 · 安全退出</span>
+      </footer>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
