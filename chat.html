@@ -47,16 +47,12 @@
       <main class="chat-shell">
         <aside class="side">
           <div class="section-title">对话</div>
-          <div class="conversation-list" id="conversationList">
-            <button class="conversation-item active" type="button">默认对话</button>
-            <button class="conversation-item" type="button">新建对话</button>
+          <button class="conversation-item" type="button" id="newConversation">+ 新建对话</button>
+          <div class="conversation-list" id="conversationList"></div>
+          <div class="conversation-menu hidden" id="conversationMenu">
+            <button type="button" class="ghost" id="conversationRename">重命名</button>
+            <button type="button" class="ghost danger" id="conversationDelete">删除</button>
           </div>
-
-          <div class="section-title">连接设置</div>
-          <label class="field">
-            <span>Base URL</span>
-            <input id="apiBase" type="text" placeholder="http://localhost:8080" />
-          </label>
 
           <div class="section-title">模型列表</div>
           <label class="field">
@@ -69,7 +65,7 @@
         <section class="chat">
           <div class="chat-header">
             <div>
-              <div class="chat-title">#lounge</div>
+              <div class="chat-title" id="chatTitle">新对话</div>
               <div class="chat-sub">流式回复已启用</div>
             </div>
             <div class="pill" id="userBadge">未登录</div>

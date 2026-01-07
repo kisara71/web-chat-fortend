@@ -34,6 +34,12 @@ const elements = {
   userBadge: document.getElementById("userBadge"),
   refreshModels: document.getElementById("refreshModels"),
   clearChat: document.getElementById("clearChat"),
+  conversationList: document.getElementById("conversationList"),
+  newConversation: document.getElementById("newConversation"),
+  chatTitle: document.getElementById("chatTitle"),
+  conversationMenu: document.getElementById("conversationMenu"),
+  conversationRename: document.getElementById("conversationRename"),
+  conversationDelete: document.getElementById("conversationDelete"),
   focusAuth: document.getElementById("focusAuth"),
   goChat: document.getElementById("goChat"),
   goChatFromHero: document.getElementById("goChatFromHero"),
@@ -56,13 +62,17 @@ const elements = {
 const state = {
   apiBase: localStorage.getItem("apiBase") || "http://localhost:8080",
   token: localStorage.getItem("token") || "",
-  userId: Number(localStorage.getItem("userId") || 0),
+  userId: localStorage.getItem("userId") || "",
   user: null,
   isRegister: false,
   loginMode: "password",
   models: [],
   messages: [],
   streaming: false,
+  conversationId: localStorage.getItem("conversationId") || "",
+  conversations: [],
+  activeMenuConversationId: "",
+  scrollTimer: null,
 };
 
 const pageType = document.body?.dataset?.page || "login";
@@ -256,6 +266,15 @@ const nowLabel = () => {
     .padStart(2, "0")}`;
 };
 
+const formatTimestamp = (value) => {
+  if (!value) return nowLabel();
+  const normalized = value > 1e12 ? value : value * 1000;
+  const date = new Date(normalized);
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date
+    .getMinutes())
+    .padStart(2, "0")}`;
+};
+
 const setLoginMode = (mode) => {
   if (!elements.loginPasswordMode || !elements.loginCodeMode) return;
   state.loginMode = mode;
@@ -287,7 +306,7 @@ const goToLogin = () => {
   window.location.href = "/";
 };
 
-const addMessage = ({ role, content, streaming = false, typing = false }) => {
+const addMessage = ({ role, content, streaming = false, typing = false, createdAt }) => {
   if (!elements.messageList) {
     return { body: null, bubble: null };
   }
@@ -301,7 +320,8 @@ const addMessage = ({ role, content, streaming = false, typing = false }) => {
 
   const meta = document.createElement("div");
   meta.className = "meta";
-  meta.textContent = `${role === "user" ? "你" : "Sydney"} · ${nowLabel()}`;
+  const label = role === "user" ? "你" : role === "system" ? "系统" : "Sydney";
+  meta.textContent = `${label} · ${formatTimestamp(createdAt)}`;
 
   const body = document.createElement("div");
   setMessageContent(body, content, role !== "user");
@@ -393,20 +413,25 @@ const apiFetch = async (path, options = {}) => {
 };
 
 const ensureUserId = () => {
-  if (state.userId || !state.token) return;
+  if (!state.token) return;
   const payload = parseJwt(state.token);
-  const userId = Number(payload?.user_id || 0);
+  const userId = payload?.user_id ? String(payload.user_id) : "";
   if (!userId) return;
-  state.userId = userId;
-  localStorage.setItem("userId", String(userId));
+  if (state.userId !== userId) {
+    state.userId = userId;
+    localStorage.setItem("userId", userId);
+  }
 };
 
 const clearAuthState = () => {
   state.token = "";
-  state.userId = 0;
+  state.userId = "";
   state.user = null;
+  state.conversationId = "";
+  state.conversations = [];
   localStorage.removeItem("token");
   localStorage.removeItem("userId");
+  localStorage.removeItem("conversationId");
   setStatus("未登录");
   setUserBadge();
   setUserCard();
@@ -414,6 +439,13 @@ const clearAuthState = () => {
     elements.modelSelect.innerHTML = "";
   }
   setModelCount("--");
+  if (elements.conversationList) {
+    elements.conversationList.innerHTML = "";
+  }
+  if (elements.chatTitle) {
+    elements.chatTitle.textContent = "新对话";
+  }
+  clearMessages();
 };
 
 const fetchUserInfo = async () => {
@@ -422,6 +454,190 @@ const fetchUserInfo = async () => {
   state.user = data;
   setUserBadge();
   setUserCard();
+};
+
+const setChatTitle = (title) => {
+  if (!elements.chatTitle) return;
+  elements.chatTitle.textContent = title || "新对话";
+};
+
+const hideConversationMenu = () => {
+  if (!elements.conversationMenu) return;
+  elements.conversationMenu.classList.add("hidden");
+  state.activeMenuConversationId = "";
+};
+
+const showConversationMenu = (conversationId, anchorEl) => {
+  if (!elements.conversationMenu || !anchorEl) return;
+  const rect = anchorEl.getBoundingClientRect();
+  elements.conversationMenu.style.top = `${rect.top}px`;
+  elements.conversationMenu.style.left = `${rect.right + 6}px`;
+  elements.conversationMenu.classList.remove("hidden");
+  state.activeMenuConversationId = conversationId;
+  requestAnimationFrame(() => {
+    if (!elements.conversationMenu) return;
+    const menuWidth = elements.conversationMenu.offsetWidth;
+    const menuHeight = elements.conversationMenu.offsetHeight;
+    let left = rect.right + 6;
+    let top = rect.top + rect.height / 2 - menuHeight / 2;
+    const maxLeft = window.innerWidth - menuWidth - 8;
+    const maxTop = window.innerHeight - menuHeight - 8;
+    if (left < 8) left = 8;
+    if (left > maxLeft) left = maxLeft;
+    if (top > maxTop) top = rect.top - menuHeight - 6;
+    if (top < 8) top = 8;
+    elements.conversationMenu.style.left = `${left}px`;
+    elements.conversationMenu.style.top = `${top}px`;
+  });
+};
+
+const normalizeConversationTitle = (title) => {
+  if (title && title.trim()) return title.trim();
+  return "新对话";
+};
+
+const renderConversations = () => {
+  if (!elements.conversationList) return;
+  elements.conversationList.innerHTML = "";
+  if (!state.conversations.length) {
+    const empty = document.createElement("div");
+    empty.className = "hint";
+    empty.textContent = "暂无对话，发送消息开始新对话。";
+    elements.conversationList.append(empty);
+    return;
+  }
+  state.conversations.forEach((item) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "conversation-item";
+    const title = document.createElement("span");
+    title.className = "conversation-title";
+    title.textContent = normalizeConversationTitle(item.title);
+    const more = document.createElement("button");
+    more.type = "button";
+    more.className = "conversation-more";
+    more.textContent = "⋯";
+    more.addEventListener("click", (event) => {
+      event.stopPropagation();
+      showConversationMenu(item.conversation_id, more);
+    });
+    button.append(title, more);
+    button.dataset.id = item.conversation_id;
+    if (item.conversation_id === state.conversationId) {
+      button.classList.add("active");
+    }
+    button.addEventListener("click", () => {
+      selectConversation(item.conversation_id);
+    });
+    elements.conversationList.append(button);
+  });
+};
+
+const fetchConversations = async () => {
+  const data = await apiFetch("/api/chat/conversations?page=1&page_size=50", { method: "GET" });
+  state.conversations = data?.items || [];
+  renderConversations();
+  return state.conversations;
+};
+
+const mapMessageToView = (item) => ({
+  role: item.role,
+  content: item.content,
+  createdAt: item.created_at,
+});
+
+const loadMessages = async (conversationId) => {
+  if (!conversationId) {
+    clearMessages();
+    setChatTitle("新对话");
+    return;
+  }
+  const data = await apiFetch(
+    `/api/chat/messages?conversation_id=${encodeURIComponent(conversationId)}&page=1&page_size=100`,
+    { method: "GET" }
+  );
+  clearMessages();
+  const items = (data?.items || []).slice().sort((a, b) => a.sequence - b.sequence);
+  state.messages = items.map(mapMessageToView);
+  items.forEach((item) => {
+    addMessage({
+      role: item.role,
+      content: item.content,
+      createdAt: item.created_at,
+    });
+  });
+};
+
+const selectConversation = async (conversationId) => {
+  if (state.streaming) return;
+  state.conversationId = conversationId || "";
+  if (state.conversationId) {
+    localStorage.setItem("conversationId", state.conversationId);
+  } else {
+    localStorage.removeItem("conversationId");
+  }
+  renderConversations();
+  const convo = state.conversations.find((item) => item.conversation_id === state.conversationId);
+  setChatTitle(normalizeConversationTitle(convo?.title));
+  await loadMessages(state.conversationId);
+};
+
+const resetConversation = async () => {
+  if (state.streaming) return;
+  state.conversationId = "";
+  localStorage.removeItem("conversationId");
+  setChatTitle("新对话");
+  renderConversations();
+  clearMessages();
+};
+
+const renameConversation = async (conversationId) => {
+  if (!conversationId) return;
+  const convo = state.conversations.find((item) => item.conversation_id === conversationId);
+  const currentTitle = normalizeConversationTitle(convo?.title);
+  const nextTitle = prompt("请输入新的对话标题", currentTitle);
+  if (nextTitle === null) return;
+  const trimmed = nextTitle.trim();
+  if (!trimmed) {
+    notify({ content: "标题不能为空。" });
+    return;
+  }
+  await apiFetch("/api/chat/conversation/title", {
+    method: "PATCH",
+    body: JSON.stringify({ conversation_id: conversationId, title: trimmed }),
+  });
+  await fetchConversations();
+  if (conversationId === state.conversationId) {
+    setChatTitle(trimmed);
+  }
+};
+
+const deleteConversation = async (conversationId) => {
+  if (!conversationId) return;
+  const confirmed = confirm("确定要删除该对话吗？该操作不可撤销。");
+  if (!confirmed) return;
+  await apiFetch(`/api/chat/conversation?conversation_id=${encodeURIComponent(conversationId)}`, {
+    method: "DELETE",
+  });
+  await fetchConversations();
+  if (conversationId === state.conversationId) {
+    await resetConversation();
+    if (state.conversations.length) {
+      const nextId = state.conversations[0].conversation_id;
+      await selectConversation(nextId);
+    }
+  }
+};
+
+const clearConversationMessages = async () => {
+  if (!state.conversationId) {
+    clearMessages();
+    return;
+  }
+  await apiFetch(`/api/chat/messages?conversation_id=${encodeURIComponent(state.conversationId)}`, {
+    method: "DELETE",
+  });
+  await loadMessages(state.conversationId);
 };
 
 const updateUser = async (payload) => {
@@ -576,7 +792,8 @@ const sendStream = async (content) => {
       },
       body: JSON.stringify({
         model,
-        messages: state.messages,
+        conversation_id: state.conversationId || "",
+        messages: [{ role: "user", content, content_type: "text" }],
         stream: true,
       }),
     });
@@ -589,6 +806,8 @@ const sendStream = async (content) => {
     const decoder = new TextDecoder();
     let buffer = "";
     let assistantText = "";
+    let conversationId = state.conversationId;
+    let conversationTitle = "";
 
     while (true) {
       const { value, done } = await reader.read();
@@ -615,11 +834,22 @@ const sendStream = async (content) => {
           replaceStreamingContent(assistant.body, assistant.bubble, assistantText);
         }
 
+        if (event.type === "image") {
+          assistantText += event.delta ? `\n[图片] ${event.delta}` : "\n[图片]";
+          replaceStreamingContent(assistant.body, assistant.bubble, assistantText);
+        }
+
         if (event.type === "error") {
           replaceStreamingContent(assistant.body, assistant.bubble, `错误：${event.delta || "unknown"}`);
         }
 
         if (event.type === "done") {
+          if (event.conversation_id) {
+            conversationId = event.conversation_id;
+          }
+          if (event.title) {
+            conversationTitle = event.title;
+          }
           break;
         }
       }
@@ -627,6 +857,16 @@ const sendStream = async (content) => {
 
     stopStreaming(assistant.bubble);
     state.messages.push({ role: "assistant", content: assistantText });
+    if (conversationId && conversationId !== state.conversationId) {
+      state.conversationId = conversationId;
+      localStorage.setItem("conversationId", conversationId);
+    }
+    if (conversationTitle) {
+      setChatTitle(conversationTitle);
+    }
+    if (conversationId) {
+      await fetchConversations();
+    }
     const cost = Math.round(performance.now() - start);
     setLatency(`${cost} ms`);
   } catch (err) {
@@ -684,6 +924,23 @@ const init = async () => {
   if (state.token && elements.modelSelect) {
     syncModels();
   }
+  if (state.token && isChatPage) {
+    try {
+      await fetchConversations();
+      const exists = state.conversations.some((item) => item.conversation_id === state.conversationId);
+      if (!exists && state.conversations.length) {
+        state.conversationId = state.conversations[0].conversation_id;
+        localStorage.setItem("conversationId", state.conversationId);
+      }
+      const convo = state.conversations.find((item) => item.conversation_id === state.conversationId);
+      if (convo) {
+        setChatTitle(normalizeConversationTitle(convo.title));
+      }
+      await loadMessages(state.conversationId);
+    } catch (err) {
+      notify({ content: `对话加载失败：${err.message}` });
+    }
+  }
 };
 
 const toggleMode = () => {
@@ -726,9 +983,13 @@ if (elements.refreshModels) {
 }
 
 if (elements.clearChat) {
-  elements.clearChat.addEventListener("click", () => {
-    clearMessages();
-    notify({ content: "对话已清空，可以重新开始。" });
+  elements.clearChat.addEventListener("click", async () => {
+    try {
+      await clearConversationMessages();
+      notify({ content: "对话已清空，可以重新开始。" });
+    } catch (err) {
+      notify({ content: `清空失败：${err.message}` });
+    }
   });
 }
 
@@ -758,6 +1019,46 @@ if (elements.goChatFromHero) {
       return;
     }
     goToChat();
+  });
+}
+
+if (elements.newConversation) {
+  elements.newConversation.addEventListener("click", async () => {
+    await resetConversation();
+  });
+}
+
+if (elements.conversationMenu) {
+  document.addEventListener("click", (event) => {
+    if (!elements.conversationMenu.contains(event.target)) {
+      hideConversationMenu();
+    }
+  });
+  window.addEventListener("scroll", hideConversationMenu, true);
+  window.addEventListener("resize", hideConversationMenu);
+}
+
+if (elements.conversationRename) {
+  elements.conversationRename.addEventListener("click", async () => {
+    try {
+      await renameConversation(state.activeMenuConversationId);
+    } catch (err) {
+      notify({ content: `重命名失败：${err.message}` });
+    } finally {
+      hideConversationMenu();
+    }
+  });
+}
+
+if (elements.conversationDelete) {
+  elements.conversationDelete.addEventListener("click", async () => {
+    try {
+      await deleteConversation(state.activeMenuConversationId);
+    } catch (err) {
+      notify({ content: `删除失败：${err.message}` });
+    } finally {
+      hideConversationMenu();
+    }
   });
 }
 
@@ -868,6 +1169,19 @@ if (elements.chatForm) {
     addMessage({ role: "user", content: value });
     elements.chatInput.value = "";
     await sendStream(value);
+  });
+}
+
+if (elements.messageList) {
+  elements.messageList.addEventListener("scroll", () => {
+    elements.messageList.classList.add("is-scrolling");
+    if (state.scrollTimer) {
+      clearTimeout(state.scrollTimer);
+    }
+    state.scrollTimer = setTimeout(() => {
+      elements.messageList.classList.remove("is-scrolling");
+      state.scrollTimer = null;
+    }, 220);
   });
 }
 
