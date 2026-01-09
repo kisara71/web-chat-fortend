@@ -48,7 +48,9 @@ const elements = {
   themeBlue: document.getElementById("themeBlue"),
   themeNeon: document.getElementById("themeNeon"),
   goSettings: document.getElementById("goSettings"),
+  goPrompt: document.getElementById("goPrompt"),
   backToChat: document.getElementById("backToChat"),
+  backToSettings: document.getElementById("backToSettings"),
   userName: document.getElementById("userName"),
   userEmail: document.getElementById("userEmail"),
   userForm: document.getElementById("userForm"),
@@ -57,13 +59,20 @@ const elements = {
   userPhoneInput: document.getElementById("userPhoneInput"),
   userPasswordInput: document.getElementById("userPasswordInput"),
   userStatus: document.getElementById("userStatus"),
+  profileForm: document.getElementById("profileForm"),
+  systemPromptInput: document.getElementById("systemPromptInput"),
+  modelPreferenceInput: document.getElementById("modelPreferenceInput"),
+  traitsInput: document.getElementById("traitsInput"),
+  profileStatus: document.getElementById("profileStatus"),
 };
 
 const state = {
   apiBase: localStorage.getItem("apiBase") || "http://localhost:8080",
   token: localStorage.getItem("token") || "",
+  refreshToken: localStorage.getItem("refreshToken") || "",
   userId: localStorage.getItem("userId") || "",
   user: null,
+  profile: null,
   isRegister: false,
   loginMode: "password",
   models: [],
@@ -78,6 +87,7 @@ const state = {
 const pageType = document.body?.dataset?.page || "login";
 const isChatPage = pageType === "chat";
 const isSettingsPage = pageType === "settings";
+const isPromptPage = pageType === "prompt";
 
 const setAuthNotice = (message) => {
   if (!message) return;
@@ -107,6 +117,14 @@ const parseJwt = (token) => {
   } catch (err) {
     return null;
   }
+};
+
+const isTokenExpiring = (token, skewSeconds = 30) => {
+  const payload = parseJwt(token);
+  const exp = payload?.exp;
+  if (!exp) return false;
+  const now = Math.floor(Date.now() / 1000);
+  return exp <= now + skewSeconds;
 };
 
 const escapeHtml = (value) =>
@@ -259,6 +277,19 @@ const setUserCard = () => {
   }
 };
 
+const setProfileForm = () => {
+  if (!state.profile) return;
+  if (elements.systemPromptInput) {
+    elements.systemPromptInput.value = state.profile.system_prompt || "";
+  }
+  if (elements.modelPreferenceInput) {
+    elements.modelPreferenceInput.value = state.profile.model_preference || "";
+  }
+  if (elements.traitsInput) {
+    elements.traitsInput.value = state.profile.traits || "";
+  }
+};
+
 const nowLabel = () => {
   const date = new Date();
   return `${String(date.getHours()).padStart(2, "0")}:${String(date
@@ -301,8 +332,13 @@ const goToSettings = () => {
   window.location.href = "/settings.html";
 };
 
+const goToPrompt = () => {
+  if (isPromptPage) return;
+  window.location.href = "/prompt.html";
+};
+
 const goToLogin = () => {
-  if (!isChatPage && !isSettingsPage) return;
+  if (!isChatPage && !isSettingsPage && !isPromptPage) return;
   window.location.href = "/";
 };
 
@@ -380,23 +416,89 @@ const clearMessages = () => {
   state.messages = [];
 };
 
+let refreshPromise = null;
+
+const setAuthTokens = (token, refreshToken) => {
+  state.token = token || "";
+  state.refreshToken = refreshToken || "";
+  if (state.token) {
+    localStorage.setItem("token", state.token);
+  } else {
+    localStorage.removeItem("token");
+  }
+  if (state.refreshToken) {
+    localStorage.setItem("refreshToken", state.refreshToken);
+  } else {
+    localStorage.removeItem("refreshToken");
+  }
+};
+
+const refreshAuthToken = async () => {
+  if (!state.refreshToken) {
+    throw new Error("refresh token missing");
+  }
+  if (refreshPromise) {
+    return refreshPromise;
+  }
+  refreshPromise = (async () => {
+    const data = await apiFetch("/api/user/refresh", {
+      method: "POST",
+      body: JSON.stringify({ refresh_token: state.refreshToken }),
+      skipAuthRefresh: true,
+      skipAuthHeader: true,
+    });
+    if (!data?.token) throw new Error("token missing");
+    setAuthTokens(data.token, data.refresh_token || state.refreshToken);
+    ensureUserId();
+  })();
+  try {
+    await refreshPromise;
+  } finally {
+    refreshPromise = null;
+  }
+};
+
+const ensureFreshToken = async () => {
+  if (!state.token || !state.refreshToken) return;
+  if (!isTokenExpiring(state.token)) return;
+  await refreshAuthToken();
+};
+
 const apiFetch = async (path, options = {}) => {
+  const { skipAuthRefresh, skipAuthHeader, hasRetried, ...fetchOptions } = options;
+  if (!skipAuthRefresh) {
+    await ensureFreshToken();
+  }
   const headers = {
     "Content-Type": "application/json",
-    ...(options.headers || {}),
+    ...(fetchOptions.headers || {}),
   };
 
-  if (state.token) {
+  if (state.token && !skipAuthHeader) {
     headers.Authorization = `Bearer ${state.token}`;
   }
 
   const res = await fetch(`${state.apiBase}${path}`, {
-    ...options,
+    ...fetchOptions,
     headers,
   });
 
   if (!res.ok) {
     const text = await res.text();
+    if ((res.status === 401 || res.status === 403) && !skipAuthRefresh && !hasRetried && state.refreshToken) {
+      try {
+        await refreshAuthToken();
+        return apiFetch(path, {
+          ...fetchOptions,
+          headers: fetchOptions.headers,
+          hasRetried: true,
+        });
+      } catch (refreshErr) {
+        const error = new Error(refreshErr.message || text || `HTTP ${res.status}`);
+        error.status = res.status;
+        throw error;
+      }
+    }
     const error = new Error(text || `HTTP ${res.status}`);
     error.status = res.status;
     throw error;
@@ -424,12 +526,12 @@ const ensureUserId = () => {
 };
 
 const clearAuthState = () => {
-  state.token = "";
+  setAuthTokens("", "");
   state.userId = "";
   state.user = null;
+  state.profile = null;
   state.conversationId = "";
   state.conversations = [];
-  localStorage.removeItem("token");
   localStorage.removeItem("userId");
   localStorage.removeItem("conversationId");
   setStatus("未登录");
@@ -454,6 +556,13 @@ const fetchUserInfo = async () => {
   state.user = data;
   setUserBadge();
   setUserCard();
+};
+
+const fetchUserProfile = async () => {
+  if (!isPromptPage) return;
+  const data = await apiFetch("/api/user/profile", { method: "GET" });
+  state.profile = data || {};
+  setProfileForm();
 };
 
 const setChatTitle = (title) => {
@@ -652,6 +761,18 @@ const setUserStatus = (text) => {
   elements.userStatus.textContent = text;
 };
 
+const updateProfile = async (payload) => {
+  await apiFetch("/api/user/profile", {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+};
+
+const setProfileStatus = (text) => {
+  if (!elements.profileStatus) return;
+  elements.profileStatus.textContent = text;
+};
+
 const startCooldown = (button, seconds, labelEl) => {
   const original = button.dataset.label || button.textContent;
   button.dataset.label = original;
@@ -708,11 +829,12 @@ const login = async ({ account, password }) => {
   const data = await apiFetch("/api/user/login", {
     method: "POST",
     body: JSON.stringify({ account, password }),
+    skipAuthRefresh: true,
+    skipAuthHeader: true,
   });
 
   if (!data?.token) throw new Error("token missing");
-  state.token = data.token;
-  localStorage.setItem("token", state.token);
+  setAuthTokens(data.token, data.refresh_token || "");
   ensureUserId();
   setStatus("已登录");
   setUserBadge();
@@ -723,11 +845,12 @@ const loginByCode = async ({ email, code }) => {
   const data = await apiFetch("/api/user/login/code", {
     method: "POST",
     body: JSON.stringify({ email, code }),
+    skipAuthRefresh: true,
+    skipAuthHeader: true,
   });
 
   if (!data?.token) throw new Error("token missing");
-  state.token = data.token;
-  localStorage.setItem("token", state.token);
+  setAuthTokens(data.token, data.refresh_token || "");
   ensureUserId();
   setStatus("已登录");
   setUserBadge();
@@ -738,6 +861,8 @@ const sendEmailCode = async (email) => {
   await apiFetch("/api/user/email/code", {
     method: "POST",
     body: JSON.stringify({ email }),
+    skipAuthRefresh: true,
+    skipAuthHeader: true,
   });
 };
 
@@ -751,14 +876,19 @@ const register = async ({ nickname, phone, email, emailCode, password }) => {
       email_code: emailCode,
       password,
     }),
+    skipAuthRefresh: true,
+    skipAuthHeader: true,
   });
 };
 
 const logout = async () => {
-  if (!state.token) return;
+  if (!state.token && !state.refreshToken) return;
+  if (!state.token && state.refreshToken) {
+    await refreshAuthToken();
+  }
   await apiFetch("/api/user/logout", {
     method: "POST",
-    body: JSON.stringify({ token: state.token }),
+    body: JSON.stringify({ token: state.token, refresh_token: state.refreshToken }),
   });
   clearAuthState();
 };
@@ -767,6 +897,15 @@ const sendStream = async (content) => {
   if (state.streaming) return;
   if (!state.token) {
     notify({ content: "请先登录。" });
+    return;
+  }
+
+  try {
+    await ensureFreshToken();
+  } catch (err) {
+    notify({ content: "登录已过期，请重新登录。" });
+    clearAuthState();
+    goToLogin();
     return;
   }
 
@@ -799,6 +938,10 @@ const sendStream = async (content) => {
     });
 
     if (!res.ok || !res.body) {
+      if ((res.status === 401 || res.status === 403) && state.refreshToken) {
+        await refreshAuthToken();
+        return await sendStream(content);
+      }
       throw new Error(`HTTP ${res.status}`);
     }
 
@@ -895,13 +1038,13 @@ const init = async () => {
     }
   }
 
-  if ((isChatPage || isSettingsPage) && !state.token) {
+  if ((isChatPage || isSettingsPage || isPromptPage) && !state.token) {
     setAuthNotice("请先登录再进入页面。");
     goToLogin();
     return;
   }
   ensureUserId();
-  if ((isChatPage || isSettingsPage) && (!state.userId || !state.token)) {
+  if ((isChatPage || isSettingsPage || isPromptPage) && (!state.userId || !state.token)) {
     clearAuthState();
     setAuthNotice("请先登录再进入页面。");
     goToLogin();
@@ -910,6 +1053,7 @@ const init = async () => {
   if (state.token) {
     try {
       await fetchUserInfo();
+      await fetchUserProfile();
     } catch (err) {
       const message = String(err.message || "");
       if (err.status === 401 || err.status === 403 || /unauthorized|invalid token|token revoked/i.test(message)) {
@@ -1197,9 +1341,32 @@ if (elements.goSettings) {
   });
 }
 
+if (elements.goPrompt) {
+  elements.goPrompt.addEventListener("click", () => {
+    goToPrompt();
+  });
+}
+
 if (elements.backToChat) {
   elements.backToChat.addEventListener("click", () => {
     goToChat();
+  });
+}
+
+if (elements.backToSettings) {
+  elements.backToSettings.addEventListener("click", () => {
+    goToSettings();
+  });
+}
+
+const chatShell = document.querySelector(".chat-shell");
+const chatSide = document.querySelector(".side");
+if (chatShell && chatSide) {
+  chatSide.addEventListener("mouseenter", () => {
+    chatShell.classList.add("side-open");
+  });
+  chatSide.addEventListener("mouseleave", () => {
+    chatShell.classList.remove("side-open");
   });
 }
 
@@ -1229,6 +1396,40 @@ if (elements.userForm) {
       await fetchUserInfo();
     } catch (err) {
       setUserStatus(`保存失败：${err.message}`);
+    }
+  });
+}
+
+if (elements.profileForm) {
+  elements.profileForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const systemPrompt = elements.systemPromptInput.value.trim();
+    const modelPreference = elements.modelPreferenceInput.value.trim();
+    const traits = elements.traitsInput.value.trim();
+
+    const currentProfile = state.profile || {};
+    const payload = {};
+    if (systemPrompt !== (currentProfile.system_prompt || "")) {
+      payload.system_prompt = systemPrompt;
+    }
+    if (modelPreference !== (currentProfile.model_preference || "")) {
+      payload.model_preference = modelPreference;
+    }
+    if (traits !== (currentProfile.traits || "")) {
+      payload.traits = traits;
+    }
+
+    if (!Object.keys(payload).length) {
+      setProfileStatus("没有需要保存的修改");
+      return;
+    }
+
+    try {
+      await updateProfile(payload);
+      setProfileStatus("提示词已保存");
+      await fetchUserProfile();
+    } catch (err) {
+      setProfileStatus(`保存失败：${err.message}`);
     }
   });
 }

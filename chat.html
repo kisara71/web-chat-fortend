@@ -34,32 +34,30 @@
           </div>
         </div>
         <div class="top-actions">
-          <div class="theme-toggle" role="group" aria-label="主题">
-            <button class="theme-button" type="button" id="themeBlue">蓝白</button>
-            <button class="theme-button" type="button" id="themeNeon">霓虹</button>
-          </div>
           <button class="ghost" id="goSettings">设置</button>
-          <button class="ghost" id="backToLogin">返回登录</button>
           <button class="secondary" id="refreshModels">刷新模型</button>
         </div>
       </header>
 
       <main class="chat-shell">
         <aside class="side">
-          <div class="section-title">对话</div>
-          <button class="conversation-item" type="button" id="newConversation">+ 新建对话</button>
-          <div class="conversation-list" id="conversationList"></div>
-          <div class="conversation-menu hidden" id="conversationMenu">
-            <button type="button" class="ghost" id="conversationRename">重命名</button>
-            <button type="button" class="ghost danger" id="conversationDelete">删除</button>
-          </div>
+          <div class="side-content">
+            <div class="section-title">对话</div>
+            <button class="conversation-item" type="button" id="newConversation">+ 新建对话</button>
+            <div class="conversation-list" id="conversationList"></div>
+            <div class="conversation-menu hidden" id="conversationMenu">
+              <button type="button" class="ghost" id="conversationRename">重命名</button>
+              <button type="button" class="ghost danger" id="conversationDelete">删除</button>
+            </div>
 
-          <div class="section-title">模型列表</div>
-          <label class="field">
-            <span>Model</span>
-            <select id="modelSelect"></select>
-          </label>
-          <div class="hint">登录后自动刷新模型</div>
+            <div class="section-title">模型列表</div>
+            <label class="field">
+              <span>Model</span>
+              <select id="modelSelect"></select>
+            </label>
+            <div class="hint">登录后自动刷新模型</div>
+            <button class="ghost" type="button" id="clearChat">清空对话</button>
+          </div>
         </aside>
 
         <section class="chat">
@@ -92,10 +90,6 @@
         </section>
       </main>
 
-      <footer class="footer">
-        <span>Warm minimal · soft motion · SSE streaming</span>
-        <button class="ghost" id="clearChat">清空对话</button>
-      </footer>
     </div>
 
     <script type="module" src="/src/main.js"></script>

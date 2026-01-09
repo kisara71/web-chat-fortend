@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Web-Chat - 设置</title>
+    <title>Web-Chat - 提示词</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -12,10 +12,10 @@
     />
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
-  <body data-page="settings" data-theme="blue" class="page-chat">
+  <body data-page="prompt" data-theme="blue" class="page-chat">
     <script>
       if (!localStorage.getItem("token")) {
-        alert("请先登录后进入设置。");
+        alert("请先登录后进入提示词设置。");
         window.location.replace("/");
       }
     </script>
@@ -30,7 +30,7 @@
           <span class="brand-mark"></span>
           <div>
             <div class="brand-name">Web-Chat</div>
-            <div class="brand-sub">专注对话，顺滑而安静。</div>
+            <div class="brand-sub">为每次对话定调。</div>
           </div>
         </div>
         <div class="top-actions">
@@ -46,41 +46,41 @@
               <button class="theme-button" type="button" id="themeNeon">霓虹</button>
             </div>
             <div class="panel-nav">
-              <button class="ghost" id="goPrompt">提示词</button>
+              <button class="ghost" id="backToSettings">返回设置</button>
               <button class="ghost" id="backToChat">返回聊天</button>
             </div>
           </div>
-          <div class="section-title">账户信息</div>
-          <div class="user-card">
-            <div class="user-name" id="userName">--</div>
-            <div class="user-meta" id="userEmail">--</div>
-          </div>
-
-          <form id="userForm" class="stack">
+          <div class="section-title">提示词配置</div>
+          <form id="profileForm" class="stack">
             <label class="field">
-              <span>昵称</span>
-              <input id="userNicknameInput" type="text" placeholder="新的昵称" />
+              <span>系统提示词</span>
+              <textarea
+                id="systemPromptInput"
+                rows="5"
+                placeholder="用于设置助手的系统提示词，例如：保持简洁、用中文回答、优先给出结论。"
+              ></textarea>
             </label>
             <label class="field">
-              <span>邮箱</span>
-              <input id="userEmailInput" type="email" placeholder="新的邮箱" />
+              <span>模型性格偏好</span>
+              <input id="modelPreferenceInput" type="text" placeholder="例如：更冷静、更简洁、更像资深顾问" />
             </label>
             <label class="field">
-              <span>手机号</span>
-              <input id="userPhoneInput" type="text" placeholder="新的手机号" />
+              <span>人设/特征</span>
+              <textarea
+                id="traitsInput"
+                rows="3"
+                placeholder="例如：更关注结构化输出、喜欢列表、避免冗长描述"
+              ></textarea>
             </label>
-            <label class="field">
-              <span>新密码</span>
-              <input id="userPasswordInput" type="password" placeholder="留空不修改" />
-            </label>
-            <button class="primary" type="submit">保存设置</button>
+            <div class="note">留空不会覆盖已有内容，保存后会在新对话里生效。</div>
+            <button class="primary" type="submit">保存提示词</button>
           </form>
-          <div class="hint" id="userStatus"></div>
+          <div class="hint" id="profileStatus"></div>
         </section>
       </main>
 
       <footer class="footer">
-        <span>账号设置 · 安全退出</span>
+        <span>提示词设置 · 影响后续新对话</span>
       </footer>
     </div>
 

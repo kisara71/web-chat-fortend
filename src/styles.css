@@ -334,10 +334,12 @@ h1 span {
   box-shadow: none;
   backdrop-filter: none;
   display: grid;
-  grid-template-columns: 200px 1fr;
+  --side-width: 56px;
+  grid-template-columns: var(--side-width) 1fr;
   overflow: hidden;
   border: none;
   min-height: calc(100vh - 170px);
+  transition: grid-template-columns 0.35s ease;
 }
 
 .page-chat .chat-shell {
@@ -349,6 +351,10 @@ h1 span {
   margin-right: calc(50% - 50vw);
 }
 
+.chat-shell.side-open {
+  --side-width: 260px;
+}
+
 .settings-shell {
   background: var(--glass);
   border-radius: 26px;
@@ -356,7 +362,12 @@ h1 span {
   backdrop-filter: blur(18px);
   border: 1px solid var(--line);
   padding: 26px;
-  min-height: calc(100vh - 210px);
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
 
 .settings-panel {
@@ -366,14 +377,69 @@ h1 span {
   gap: 14px;
 }
 
+.panel-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.panel-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .side {
   background: rgba(244, 248, 255, 0.6);
-  padding: 22px 20px;
+  padding: 18px 8px;
   display: flex;
   flex-direction: column;
   gap: 14px;
   border-right: 1px solid var(--line);
   min-height: 0;
+  overflow: hidden;
+  transition: background 0.35s ease, padding 0.35s ease;
+}
+
+.side-handle {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--muted);
+  writing-mode: vertical-lr;
+  text-orientation: upright;
+  transform: none;
+  text-align: center;
+  margin: 10px auto 4px;
+  user-select: none;
+  cursor: default;
+  transition: opacity 0.2s ease, margin 0.2s ease;
+}
+
+.chat-shell.side-open .side-handle {
+  opacity: 0;
+  margin: 0;
+}
+
+.side-content {
+  opacity: 0;
+  transform: translateX(-8px);
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.35s ease;
+}
+
+.chat-shell.side-open .side-content {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+.chat-shell.side-open .side {
+  background: rgba(244, 248, 255, 0.82);
+  padding: 22px 20px;
 }
 
 .conversation-list {
@@ -495,7 +561,8 @@ h1 span {
 }
 
 .field input,
-.field select {
+.field select,
+.field textarea {
   padding: 10px 12px;
   border-radius: 12px;
   border: 1px solid var(--line);
@@ -506,10 +573,16 @@ h1 span {
 }
 
 .field input:focus,
-.field select:focus {
+.field select:focus,
+.field textarea:focus {
   outline: none;
   border-color: rgba(var(--accent-rgb), 0.6);
   box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.18);
+}
+
+.field textarea {
+  resize: vertical;
+  min-height: 96px;
 }
 
 .inline-field {
@@ -554,6 +627,9 @@ h1 span {
 .page-chat .chat {
   height: 100%;
   min-height: 0;
+  padding: 14px 18px 12px;
+  border-radius: 0;
+  gap: 10px;
 }
 
 .chat-header {
@@ -588,8 +664,8 @@ h1 span {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 12px 10px 12px 4px;
-  margin-right: -4px;
+  padding: 12px 14px 10px;
+  margin-right: 0;
   scroll-behavior: smooth;
   min-height: 0;
   position: relative;
@@ -713,7 +789,7 @@ h1 span {
   display: flex;
   gap: 10px;
   align-items: center;
-  padding-top: 8px;
+  padding-top: 4px;
   border-top: 1px solid var(--line);
   position: relative;
 }
