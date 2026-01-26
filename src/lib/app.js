@@ -1,3 +1,13 @@
+export const initApp = (pageType) => {
+  if (typeof document === "undefined") return;
+  const resolvedPageType = pageType || document.body?.dataset?.page || "login";
+  document.body.dataset.page = resolvedPageType;
+  document.body.classList.toggle("page-chat", resolvedPageType !== "login");
+  if (document.body.dataset.appInit === resolvedPageType) {
+    return;
+  }
+  document.body.dataset.appInit = resolvedPageType;
+
 const elements = {
   apiBase: document.getElementById("apiBase"),
   authForm: document.getElementById("authForm"),
@@ -84,10 +94,9 @@ const state = {
   scrollTimer: null,
 };
 
-const pageType = document.body?.dataset?.page || "login";
-const isChatPage = pageType === "chat";
-const isSettingsPage = pageType === "settings";
-const isPromptPage = pageType === "prompt";
+const isChatPage = resolvedPageType === "chat";
+const isSettingsPage = resolvedPageType === "settings";
+const isPromptPage = resolvedPageType === "prompt";
 
 const setAuthNotice = (message) => {
   if (!message) return;
@@ -324,17 +333,17 @@ const setLoginMode = (mode) => {
 
 const goToChat = () => {
   if (isChatPage) return;
-  window.location.href = "/chat.html";
+  window.location.href = "/chat";
 };
 
 const goToSettings = () => {
   if (isSettingsPage) return;
-  window.location.href = "/settings.html";
+  window.location.href = "/settings";
 };
 
 const goToPrompt = () => {
   if (isPromptPage) return;
-  window.location.href = "/prompt.html";
+  window.location.href = "/prompt";
 };
 
 const goToLogin = () => {
@@ -1447,3 +1456,4 @@ if (elements.themeNeon) {
 }
 
 init();
+};
